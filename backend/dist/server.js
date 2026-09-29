@@ -26,8 +26,20 @@ const elasticsearch_1 = require("./lib/elasticsearch");
 const email_queue_1 = require("./queue/email.queue");
 const auth_1 = require("./middleware/auth");
 const app = (0, express_1.default)();
+const allowedFrontendOrigins = new Set((process.env.FRONTEND_URLS ||
+    process.env.FRONTEND_URL ||
+    "http://localhost:5173,http://localhost:5175")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean));
 app.use((0, cors_1.default)({
-    origin: "http://localhost:5173",
+    origin: (origin, callback) => {
+        if (!origin || allowedFrontendOrigins.has(origin)) {
+            callback(null, true);
+            return;
+        }
+        callback(new Error(`CORS origin not allowed: ${origin}`));
+    },
     credentials: true,
 }));
 app.use(express_1.default.json());

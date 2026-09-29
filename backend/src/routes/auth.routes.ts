@@ -244,11 +244,11 @@ router.get(
           });
         }
 
-        // After login, go to frontend dashboard
+        // After login, go to the configured frontend dashboard.
         return res.redirect(
           `${
             process.env.FRONTEND_URL ||
-            "http://localhost:5173"
+            "http://localhost:5175"
           }/dashboard`
         );
       });
@@ -261,6 +261,12 @@ router.get(
       return res.status(500).json({
         message:
           "Google OAuth failed",
+        ...(process.env.NODE_ENV !== "production" && {
+          detail:
+            error instanceof Error
+              ? error.message
+              : String(error),
+        }),
       });
     }
   }

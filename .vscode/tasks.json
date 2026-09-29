@@ -1,0 +1,22 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Prisma: Generate Client",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"--prefix",
+				"backend",
+				"exec",
+				"--",
+				"prisma",
+				"generate",
+				"--config",
+				"backend/prisma.config.ts"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		}
+	]
+}

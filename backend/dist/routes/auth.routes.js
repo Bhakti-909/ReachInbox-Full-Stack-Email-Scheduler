@@ -147,9 +147,9 @@ router.get("/google/callback", (req, res) => __awaiter(void 0, void 0, void 0, f
                     message: "Failed to create login session",
                 });
             }
-            // After login, go to frontend dashboard
+            // After login, go to the configured frontend dashboard.
             return res.redirect(`${process.env.FRONTEND_URL ||
-                "http://localhost:5173"}/dashboard`);
+                "http://localhost:5175"}/dashboard`);
         });
     }
     catch (error) {
