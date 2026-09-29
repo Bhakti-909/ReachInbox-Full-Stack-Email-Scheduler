@@ -1,144 +1,158 @@
-﻿# ReachInbox Scheduler
+﻿# ReachInbox Full-Stack Email Scheduler
 
-ReachInbox Scheduler is a full-stack email scheduling platform that allows users to authenticate with Google, compose emails, schedule them for delivery, and monitor sending status in a dashboard. The app uses a background worker queue to process email jobs reliably and supports search, Slack configuration, and per-sender rate limiting.
+A full-stack email scheduling platform. Users sign in with Google, compose emails, schedule them for future delivery, and track sending status from a dashboard. A background worker processes jobs reliably, with search, Slack notifications, and per-sender rate limiting.
 
 ---
 
 ## Features
 
-- Google OAuth login and session-based authentication
-- Dashboard for scheduled and sent emails
-- Compose and schedule email jobs for a future delivery time
+- Google OAuth login with session-based authentication
+- Dashboard for scheduled, sent, and failed emails
+- Compose and schedule emails for a future delivery time
 - Email detail view with metadata and status tracking
-- Background processing with BullMQ and Redis
-- Per-sender hourly sending limits via Redis counters
+- Background processing with BullMQ and Redis (durable, retry-capable jobs)
+- Per-sender hourly sending limits using Redis counters
 - PostgreSQL persistence through Prisma ORM
 - Elasticsearch-powered email search and filtering
-- Slack integration settings and configuration support
-- Docker Compose setup for local infrastructure services
+- Slack integration (OAuth connect and notifications)
+- BullMQ admin dashboard at `/admin/queues`
+- Docker Compose setup for local infrastructure
+
+---
+
+## Tech Stack
+
+| Layer    | Technology                              |
+| -------- | --------------------------------------- |
+| Frontend | React, Vite                             |
+| Backend  | Node.js, Express 5, TypeScript          |
+| Queue    | BullMQ, Redis                           |
+| Database | PostgreSQL, Prisma                      |
+| Search   | Elasticsearch                           |
+| Mail     | Nodemailer (Ethereal for local testing) |
+| Auth     | Passport, Google OAuth 2.0              |
 
 ---
 
 ## Architecture
 
-ReachInbox follows a modular full-stack architecture with separate frontend, API, worker, and infrastructure layers.
-
 ```text
 Frontend (React + Vite)
-    │
-    ├── User login and dashboard UI
-    ├── Email compose and detail pages
-    └── Calls backend API over HTTP
-            │
-            v
-Backend (Express + TypeScript)
-    ├── Auth routes for Google OAuth
-    ├── Email routes for CRUD and scheduling
-    ├── Slack routes for integration settings
-    ├── Prisma access to PostgreSQL
-    ├── Redis-backed rate limiting and queue metadata
-    └── Elasticsearch indexing/search integration
-            │
-            v
-Background Worker (BullMQ)
+    │  login, dashboard, compose, email detail
+    ▼
+Backend API (Express + TypeScript)
+    ├── Auth routes (Google OAuth)
+    ├── Email routes (create, list, schedule)
+    ├── Slack routes (OAuth and settings)
+    ├── Prisma → PostgreSQL
+    ├── Redis → rate limiting and queue
+    └── Elasticsearch → indexing and search
+    ▼
+Worker (BullMQ)
     ├── Consumes scheduled jobs from Redis
-    ├── Sends emails with Nodemailer
-    ├── Updates email status in PostgreSQL
-    └── Maintains retry and processing flow
+    ├── Sends email through Nodemailer
+    ├── Updates status in PostgreSQL
+    └── Handles retries and Slack notifications
 ```
-
-### Core services
-
-- Frontend: React app for login, dashboard, compose flow, and email detail screens
-- Backend API: Express server that handles authentication, scheduled email creation, search, and Slack settings
-- Worker: background job processor for sending queued emails at their scheduled time
-- Database: PostgreSQL via Prisma for persistent email and user records
-- Queue: Redis + BullMQ for asynchronous email processing
-- Search: Elasticsearch for fast email lookup
-- Mailer: Nodemailer for outgoing email delivery
 
 ---
 
-## Setup Instructions
+## Prerequisites
 
-### 1. Clone the repository
+- Node.js 20 or newer
+- Docker Desktop
+- A Google Cloud OAuth client (for login)
+- Optional: a Slack app and ngrok (for Slack integration)
+
+---
+
+## Getting Started
+
+### 1. Clone and install
 
 ```bash
-git clone <your-repo-url>
-cd reachinbox-scheduler
-```
+git clone https://github.com/Bhakti-909/ReachInbox-Full-Stack-Email-Scheduler.git
+cd ReachInbox-Full-Stack-Email-Scheduler
 
-### 2. Install dependencies
-
-```bash
 npm install
-cd backend && npm install
-cd ../frontend && npm install
+npm --prefix backend install
+npm --prefix frontend install
 ```
 
-### 3. Start supporting infrastructure
-
-This project uses PostgreSQL, Redis, and Elasticsearch via Docker Compose.
+### 2. Start infrastructure
 
 ```bash
-cd ..
 docker compose up -d
 ```
 
-The compose file exposes:
+| Service       | Host port |
+| ------------- | --------- |
+| PostgreSQL    | `5434`    |
+| Redis         | `6380`    |
+| Elasticsearch | `9200`    |
 
-- PostgreSQL on port `5434`
-- Redis on port `6380`
-- Elasticsearch on port `9200`
+### 3. Configure environment variables
 
-### 4. Configure environment variables
-
-Create a file at `backend/.env` with the following values:
+Create `backend/.env`:
 
 ```env
 PORT=5000
 NODE_ENV=development
 
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/reachinbox
-REDIS_HOST=localhost
-REDIS_PORT=6379
+# Database (matches docker-compose.yml)
+DATABASE_URL="postgresql://postgres:root@localhost:5434/reachinbox"
 
+# Redis (matches docker-compose.yml)
+REDIS_HOST=localhost
+REDIS_PORT=6380
+
+# Google OAuth
 GOOGLE_CLIENT_ID=your-google-client-id
 GOOGLE_CLIENT_SECRET=your-google-client-secret
-GOOGLE_CALLBACK_URL=http://localhost:5000/api/auth/google/callback
+GOOGLE_REDIRECT_URI=http://localhost:5000/api/auth/google/callback
 
-SESSION_SECRET=change-me
+# Session
+SESSION_SECRET=your_long_random_secret
 
+# SMTP (Ethereal for development)
 SMTP_HOST=smtp.ethereal.email
 SMTP_PORT=587
 SMTP_USER=your-ethereal-user
 SMTP_PASS=your-ethereal-pass
-SMTP_FROM=your-fake-sender@example.com
+SMTP_FROM=your-sender@example.com
 
+# Worker and rate limiting
 WORKER_CONCURRENCY=5
-MIN_DELAY_MS_BETWEEN_EMAILS=2000
-MAX_EMAILS_PER_HOUR_PER_SENDER=200
+MIN_DELAY_MS=2000
+MAX_EMAILS_PER_HOUR_PER_SENDER=15
+RUN_WORKER=true
 
+# Frontend
 FRONTEND_URL=http://localhost:5173
+FRONTEND_URLS=http://localhost:5173
+
+# Elasticsearch
+ELASTICSEARCH_URL=http://localhost:9200
+ELASTIC_EMAIL_INDEX=emails
+
+# Slack (optional)
+SLACK_CLIENT_ID=your-slack-client-id
+SLACK_CLIENT_SECRET=your-slack-client-secret
+SLACK_REDIRECT_URI=https://your-ngrok-domain.ngrok-free.dev/api/slack/callback
 ```
 
-Notes:
+Never commit this file. It is already covered by `.gitignore`.
 
-- `SMTP_FROM` is the sender address shown in the UI and used for local testing.
-- `MAX_EMAILS_PER_HOUR_PER_SENDER` enforces the hourly send cap per sender.
-- Ethereal is used as a fake SMTP provider for development.
-
-### 5. Prepare the database
-
-Run Prisma generation and migrations:
+### 4. Set up the database
 
 ```bash
 cd backend
 npx prisma generate
 npx prisma migrate dev
+cd ..
 ```
 
-### 6. Run the app
+### 5. Run the app
 
 From the project root:
 
@@ -146,113 +160,110 @@ From the project root:
 npm run dev
 ```
 
-This starts all services together:
+This starts the backend API, the BullMQ worker, and the frontend dev server together.
 
-- backend API
-- BullMQ worker
-- frontend development server
-
-### 7. Access the app
+### 6. Open the app
 
 - Frontend: http://localhost:5173
 - Backend API: http://localhost:5000
-- BullMQ admin dashboard: http://localhost:5000/admin/queues
+- Queue dashboard: http://localhost:5000/admin/queues
+
+---
+
+## Slack Integration (optional)
+
+Slack requires a public HTTPS callback URL, so use ngrok during development:
+
+```bash
+npm --prefix backend run ngrok
+```
+
+Then:
+
+1. Set `SLACK_REDIRECT_URI` in `backend/.env` to `https://<your-ngrok-domain>/api/slack/callback`.
+2. Add the same URL under **OAuth & Permissions → Redirect URLs** in your Slack app settings.
+3. Restart the backend.
+
+The ngrok script uses PowerShell, so it runs on Windows.
+
+---
+
+## Scripts
+
+```bash
+# root
+npm run dev        # backend + worker + frontend
+npm run build      # build backend and frontend
+npm run start      # backend + worker (production)
+
+# backend
+npm --prefix backend run dev
+npm --prefix backend run worker
+npm --prefix backend run reindex   # rebuild the Elasticsearch index
+npm --prefix backend run build
+
+# frontend
+npm --prefix frontend run dev
+npm --prefix frontend run build
+```
 
 ---
 
 ## Project Structure
 
 ```text
-reachinbox-scheduler/
+ReachInbox-Full-Stack-Email-Scheduler/
 ├── backend/
-│   ├── prisma/
+│   ├── prisma/          # schema and migrations
 │   ├── src/
-│   ├── .env
-│   ├── package.json
-│   └── tsconfig.json
+│   │   ├── lib/         # prisma, redis, mailer, slack, elasticsearch
+│   │   ├── middleware/
+│   │   ├── queue/       # BullMQ queue
+│   │   ├── routes/      # auth, email, slack
+│   │   ├── scripts/     # reindex, seed, ngrok
+│   │   ├── services/    # search, rate limiter, tokens
+│   │   ├── workers/     # email worker
+│   │   └── server.ts
+│   ├── prisma.config.ts
+│   └── package.json
 ├── frontend/
 │   ├── src/
-│   ├── package.json
-│   └── vite.config.js
-├── docs/
-│   └── screenshots/
+│   └── package.json
 ├── docker-compose.yml
 ├── package.json
-├── Readme.md
-├── .gitignore
-└── .env.example (if added later)
+└── Readme.md
 ```
 
 ---
 
-## Useful Commands
+## How It Works
 
-```bash
-# root
-npm run dev
-npm run build
-npm run start
+1. A user signs in with Google.
+2. They create a scheduled email from the dashboard.
+3. The backend saves it to PostgreSQL, indexes it in Elasticsearch, and enqueues a delayed BullMQ job.
+4. At the scheduled time, the worker checks the sender's hourly limit and sends the email.
+5. The email status is updated to sent or failed, and a Slack notification is sent if connected.
 
-# backend
-cd backend
-npm run dev
-npm run worker
-npm run build
-
-# frontend
-cd frontend
-npm run dev
-npm run build
-```
-
----
-
-## Typical Workflow
-
-1. Start the app with `npm run dev`
-2. Log in using Google OAuth
-3. Create a scheduled email from the dashboard
-4. The backend stores the record and enqueues a BullMQ job
-5. The worker sends the email when the scheduled time is reached
-6. The email appears in the sent or failed list with status updates
+BullMQ jobs are stored in Redis, so queued work survives worker restarts.
 
 ---
 
 ## Deployment Notes
 
-For production environments, update the following values to match your live public URLs:
+Before deploying, update these to your live public URLs:
 
-- `FRONTEND_URL`
-- `GOOGLE_CALLBACK_URL`
-- CORS origin configuration in the backend
-- Slack redirect URLs if Slack integration is enabled
+- `FRONTEND_URL` and `FRONTEND_URLS`
+- `GOOGLE_REDIRECT_URI` (also in Google Cloud Console)
+- `SLACK_REDIRECT_URI` (also in Slack app settings)
+- CORS origins in the backend
 
----
-
-## Screenshots
-
-<table>
-  <tr>
-    <td><img src="docs/screenshots/Screenshot 2026-09-02 223924.png" alt="ReachInbox Google OAuth"></td>
-    <td><img src="docs/screenshots/screenshot-222928.png" alt="ReachInbox login page"></td>
-    <td><img src="docs/screenshots/screenshot-222730.png" alt="ReachInbox dashboard"></td>
-  </tr>
-  <tr>
-    <td><img src="docs/screenshots/screenshot-223004.png" alt="ReachInbox Slack settings"></td>
-    <td><img src="docs/screenshots/screenshot-222826.png" alt="ReachInbox compose email page"></td>
-    <td><img src="docs/screenshots/screenshot-223025.png" alt="ReachInbox scheduled email form"></td>
-  </tr>
-  <tr>
-    <td><img src="docs/screenshots/screenshot-223255.png" alt="ReachInbox email scheduling workflow"></td>
-    <td><img src="docs/screenshots/screenshot-222747.png" alt="ReachInbox scheduled emails"></td>
-    <td><img src="docs/screenshots/screenshot-222802.png" alt="ReachInbox email details"></td>
-  </tr>
-</table>
+Use strong values for `SESSION_SECRET` and database credentials, and use a real SMTP provider instead of Ethereal.
 
 ---
 
-## Notes
+## Troubleshooting
 
-- The app uses fake SMTP addresses during local development, so sender identity is configured from environment variables rather than the logged-in user email.
-- The hourly limit is enforced per sender using Redis-backed counters.
-- BullMQ jobs are durable in Redis, so queued work remains recoverable across worker restarts.
+- **Cannot connect to Postgres or Redis:** confirm the containers are running with `docker compose ps`, and that `.env` uses ports `5434` and `6380`.
+- **Prisma client errors:** run `npx prisma generate` inside `backend`.
+- **Emails not sending:** make sure the worker is running and `RUN_WORKER` and the SMTP settings are correct.
+- **Slack OAuth fails:** the redirect URL must match exactly in both `.env` and the Slack app, and ngrok must be running.
